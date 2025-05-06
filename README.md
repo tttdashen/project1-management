@@ -1,6 +1,9 @@
-<<<<<<< HEAD
-# project1-management
-#项目管理
-=======
-.
->>>>>>> 0fa9a55 (management-day1)
+# FastAPI Task Manager
+
+这是一个基于 FastAPI 的任务管理系统。
+
+## 快速开始
+
+```bash
+pip install -r requirements.txt
+uvicorn main:app --reload
