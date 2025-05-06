@@ -1,6 +1,6 @@
 # FastAPI Task Manager
 
-这是一个基于 FastAPI 的任务管理系统。day1
+这是一个基于 FastAPI 的任务管理系统。day2
 
 ## 快速开始
 
