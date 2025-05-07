@@ -24,3 +24,5 @@ class TaskCreat(BaseModel):#定义字典，引用继承 Pydantic 的基类，启
 #它的意思是：响应体和请求体几乎一样，只是多了一个 ID 字段。
 class Task(TaskCreat):#这个是响应
     id:int
+
+#在day2.2就已经不调用这个py了，因为直接写进mian了
