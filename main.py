@@ -20,6 +20,9 @@ def creat_task(task:TaskCreat):
 #FastAPI 会自动做这些事：类型校验（title 是否为字符串）缺少字段会返回 422 错误
     global task_id_counter## 引用上面的全局变量 task_id_counter（否则函数内不能修改它）
     new_task = Task(id=task_id_counter, **task.dict())  # 合并 ID 和用户提交字段
+    # 把 Pydantic 对象 task 转换成普通字典
+    # 例如变成 {'title': '买菜', 'description': '买鸡蛋'}
+
     task_id_counter += 1
     tasks.append(new_task)
     return new_task
