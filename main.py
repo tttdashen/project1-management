@@ -72,43 +72,50 @@
 
 
 #day2.2重新写完整代码
-from fastapi import FastAPI,HTTPException
+# main.py
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional,List
+from typing import Optional, List
+from database import SessionLocal, init_db
+from models import TaskDB
 
 app = FastAPI()
+init_db()  # 初始化数据库
 
-class TaskCreat(BaseModel):
-    title:str
-    description:Optional[str]=None
-class Task(TaskCreat):
-    id:int
+# ---- Pydantic 数据模型 ----
+class TaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
 
-#模拟数据库
-tasks:List[Task]=[]
-task_id_counter=1
+class Task(TaskCreate):
+    id: int
 
-@app.post("/tasks",response_model=Task)
-def create_task(task:TaskCreat):
-    global task_id_counter
-    new_task = Task(id=task_id_counter,**task.dict())
-    task_id_counter +=1
-    tasks.append(new_task)
+    class Config:
+        orm_mode = True  # 关键：让 Pydantic 支持 ORM 模型
+
+# ---- 数据库 Session 获取器 ----
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+# ---- 创建任务接口 ----
+@app.post("/tasks", response_model=Task)
+def create_task(task: TaskCreate, db: Session = Depends(get_db)):
+    new_task = TaskDB(title=task.title, description=task.description)
+    db.add(new_task)
+    db.commit()
+    db.refresh(new_task)
     return new_task
 
-@app.get("/tasks",response_model=List[Task])
-def get_tasks():
-    return tasks
+# ✅ ---- 查询指定任务接口 ----
+@app.get("/tasks/{task_id}", response_model=Task)
+def get_task(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(TaskDB).filter(TaskDB.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务 ID {task_id} 不存在")
+    return task
 
-#✅ Day 4 新增功能：根据任务ID获取单个任务
-@app.get("/tasks/{task_id}",response_model=Task)
-def get_task(task_id:int):
-    """
-    获取指定 ID 的任务
-    如果找不到，返回 404 错误
-    """
-    for task in tasks:
-        if task.id ==task_id:
-            return task# 找到了就返回
-    #没有找到，抛出 404 异常
-    raise HTTPException(status_code=404,detail="任务未找到")
