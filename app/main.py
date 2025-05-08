@@ -73,49 +73,57 @@
 
 #day2.2重新写完整代码
 # main.py
-from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Optional, List
-from database import SessionLocal, init_db
-from models import TaskDB
+# from fastapi import FastAPI, Depends, HTTPException
+# from sqlalchemy.orm import Session
+# from pydantic import BaseModel
+# from typing import Optional, List
+# from database import SessionLocal, init_db
+# from models import TaskDB
+
+# app = FastAPI()
+# init_db()  # 初始化数据库
+
+# # ---- Pydantic 数据模型 ----
+# class TaskCreate(BaseModel):
+#     title: str
+#     description: Optional[str] = None
+
+# class Task(TaskCreate):
+#     id: int
+
+#     class Config:
+#         orm_mode = True  # 关键：让 Pydantic 支持 ORM 模型
+
+# # ---- 数据库 Session 获取器 ----
+# def get_db():
+#     db = SessionLocal()
+#     try:
+#         yield db
+#     finally:
+#         db.close()
+
+# # ---- 创建任务接口 ----
+# @app.post("/tasks", response_model=Task)
+# def create_task(task: TaskCreate, db: Session = Depends(get_db)):
+#     new_task = TaskDB(title=task.title, description=task.description)
+#     db.add(new_task)
+#     db.commit()
+#     db.refresh(new_task)
+#     return new_task
+
+# # ✅ ---- 查询指定任务接口 ----
+# @app.get("/tasks/{task_id}", response_model=Task)
+# def get_task(task_id: int, db: Session = Depends(get_db)):
+#     task = db.query(TaskDB).filter(TaskDB.id == task_id).first()
+#     if not task:
+#         raise HTTPException(status_code=404, detail=f"任务 ID {task_id} 不存在")
+#     return task
+
+#day4-- app/main.py — 入口文件（非常简洁）
+from fastapi import FastAPI
+from .database import init_db
+from .routers import tasks
 
 app = FastAPI()
-init_db()  # 初始化数据库
-
-# ---- Pydantic 数据模型 ----
-class TaskCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
-
-class Task(TaskCreate):
-    id: int
-
-    class Config:
-        orm_mode = True  # 关键：让 Pydantic 支持 ORM 模型
-
-# ---- 数据库 Session 获取器 ----
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-# ---- 创建任务接口 ----
-@app.post("/tasks", response_model=Task)
-def create_task(task: TaskCreate, db: Session = Depends(get_db)):
-    new_task = TaskDB(title=task.title, description=task.description)
-    db.add(new_task)
-    db.commit()
-    db.refresh(new_task)
-    return new_task
-
-# ✅ ---- 查询指定任务接口 ----
-@app.get("/tasks/{task_id}", response_model=Task)
-def get_task(task_id: int, db: Session = Depends(get_db)):
-    task = db.query(TaskDB).filter(TaskDB.id == task_id).first()
-    if not task:
-        raise HTTPException(status_code=404, detail=f"任务 ID {task_id} 不存在")
-    return task
-
+init_db()
+app.include_router(tasks.router)
