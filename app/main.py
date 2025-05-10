@@ -120,10 +120,12 @@
 #     return task
 
 #day4-- app/main.py — 入口文件（非常简洁）
+# app/main.py
 from fastapi import FastAPI
 from .database import init_db
 from .routers import tasks
 
 app = FastAPI()
-init_db()
-app.include_router(tasks.router)
+init_db()  # 初始化数据库
+
+app.include_router(tasks.router)  # 注册 /tasks 路由模块
