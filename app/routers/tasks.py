@@ -15,6 +15,9 @@ def get_db():
 
 @router.post("/tasks",response_model=schemas.Task)
 def creat_task(task:schemas.TaskCreate,db:Session=Depends(get_db)):
+    if task.title.strip()=="":
+        raise HTTPException(status_code=400,detail="任务标题不能为空")
+    #判断标题是否包含非法字符（如全是空格）
     db_task=models.TaskDB(title=task.title,description=task.description)
     db.add(db_task)
     db.commit()
