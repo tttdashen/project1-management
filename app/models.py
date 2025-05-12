@@ -36,10 +36,21 @@ Base = declarative_base()  # 创建 ORM 基类，所有模型必须继承它
 
 class TaskDB(Base):
     __tablename__ = "tasks"  # 数据表名称
-
+    __table_args__ = {'extend_existing': True}  # 解决重复表定义的问题
     id = Column(Integer, primary_key=True, index=True)      # 主键，自动递增
     title = Column(String, index=True)                      # 标题字段
     description = Column(String, nullable=True)             # 描述字段，可为空
+
+#✅ 新增：用户模型
+class UserDB(Base):
+    __tablename__="users"
+    __table_args__ = {'extend_existing': True}  
+    id = Column(Integer,primary_key=True,index=True)
+    username=Column(String,unique=True,index=True)# # 用户名不能重复
+    password=Column(String)## 这里简单用明文密码，Day9会改成哈希
+
+
+
 
 '''
 TaskDB 类就像是你在 Excel 中创建了一张任务表：
