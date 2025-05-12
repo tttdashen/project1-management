@@ -1,8 +1,11 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from .models import Base
+from config import settings ## 导入我们刚写的配置对象
 
-DATABASE_URL = "sqlite:///./tasks.db"
+
+# 从配置中读取数据库连接字符串
+DATABASE_URL = settings.DATABASE_URL
 
 # 创建 SQLite 数据库连接（tasks.db）
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})

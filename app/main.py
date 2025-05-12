@@ -124,8 +124,16 @@
 from fastapi import FastAPI
 from .database import init_db
 from .routers import tasks
+from config import settings
 
 app = FastAPI()
 init_db()  # 初始化数据库
 
 app.include_router(tasks.router)  # 注册 /tasks 路由模块
+
+@app.get("/") 
+def read_root():
+    return{
+        "message": "任务系统启动成功",
+        "environment": settings.APP_ENV
+    }
