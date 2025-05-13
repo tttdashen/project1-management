@@ -1,7 +1,6 @@
-#引入FastAPI的测试工具TestClient
-from fastapi.testclient import TestClient
-from app.main import app #导入FastAPI实例
 
+from fastapi.testclient import TestClient
+from app.main import app
 #创建一个测试客户端（模拟浏览器访问）
 client = TestClient(app)
 

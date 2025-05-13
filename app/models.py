@@ -29,27 +29,31 @@
 
 
 #创建ORM模型
-from sqlalchemy import Column, Integer, String
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
+from app.database import Base   # ★ 复用同一个 Base
 
-Base = declarative_base()  # 创建 ORM 基类，所有模型必须继承它
+# ---------- 任务模型 ----------
+class Task(Base):
+    __tablename__ = "tasks"
+    id          = Column(Integer, primary_key=True, index=True)
+    title       = Column(String, index=True, nullable=False)
+    description = Column(String, nullable=True)
 
-class TaskDB(Base):
-    __tablename__ = "tasks"  # 数据表名称
-    __table_args__ = {'extend_existing': True}  # 解决重复表定义的问题
-    id = Column(Integer, primary_key=True, index=True)      # 主键，自动递增
-    title = Column(String, index=True)                      # 标题字段
-    description = Column(String, nullable=True)             # 描述字段，可为空
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    owner    = relationship("User", back_populates="tasks")
 
-#✅ 新增：用户模型
-class UserDB(Base):
-    __tablename__="users"
-    __table_args__ = {'extend_existing': True}  
-    id = Column(Integer,primary_key=True,index=True)
-    username=Column(String,unique=True,index=True)# # 用户名不能重复
-    password=Column(String)## 这里简单用明文密码，Day9会改成哈希
+# 兼容旧测试引用的名字
+TaskDB = Task
 
+# ---------- 用户模型 ----------
+class User(Base):
+    __tablename__ = "users"
+    id              = Column(Integer, primary_key=True, index=True)
+    username        = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
 
+    tasks = relationship("Task", back_populates="owner")
 
 
 '''

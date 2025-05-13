@@ -122,13 +122,17 @@
 #day4-- app/main.py — 入口文件（非常简洁）
 # app/main.py
 from fastapi import FastAPI
-from .database import init_db
-from .routers import tasks,users
+from app.database import Base, engine
+from app import models       
 from config import settings
+      
 
+
+Base.metadata.create_all(bind=engine)
+
+# 初始化数据库
+from app.routers import tasks, users
 app = FastAPI()
-init_db()  # 初始化数据库
-
 app.include_router(tasks.router)  # 注册 /tasks 路由模块
 app.include_router(users.router)#新增注册用户接口
 

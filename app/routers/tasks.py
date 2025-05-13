@@ -1,32 +1,30 @@
-from fastapi import APIRouter,Depends,HTTPException
+from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 
-from .. import models,schemas,database
+from app.database import get_db
+from app import models, schemas
 
-router = APIRouter()
+router = APIRouter(prefix="/tasks", tags=["tasks"])
 
-#获取数据库对话
-def get_db():
-    db = database.SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-@router.post("/tasks",response_model=schemas.Task)
-def creat_task(task:schemas.TaskCreate,db:Session=Depends(get_db)):
-    if task.title.strip()=="":
-        raise HTTPException(status_code=400,detail="任务标题不能为空")
-    #判断标题是否包含非法字符（如全是空格）
-    db_task=models.TaskDB(title=task.title,description=task.description)
-    db.add(db_task)
+# ---------- 创建 ----------
+@router.post("", response_model=schemas.Task, status_code=status.HTTP_200_OK)
+def create_task(task_in: schemas.TaskCreate, db: Session = Depends(get_db)):
+    task = models.Task(**task_in.dict())
+    db.add(task)
     db.commit()
-    db.refresh(db_task)
-    return db_task
+    db.refresh(task)
+    return task
 
-@router.get("/tasks/{task_id}",response_model=schemas.Task)
-def get_task(task_id:int,db:Session=Depends(get_db)):
-    task = db.query(models.TaskDB).filter(models.TaskDB.id==task_id).first()
+# ---------- 列表 ----------
+@router.get("", response_model=list[schemas.Task])    # ★ 一定是 list[schemas.Task]
+def read_tasks(db: Session = Depends(get_db)):
+    tasks = db.query(models.Task).all()              # ★ 返回真实列表
+    return tasks
+
+# ---------- 单条查询 ----------
+@router.get("/{task_id}", response_model=schemas.Task)
+def read_task(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(models.Task).get(task_id)
     if not task:
-        raise HTTPException(status_code=404,detail="任务不存在")
+        raise HTTPException(status_code=404, detail="任务不存在")
     return task
