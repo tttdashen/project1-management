@@ -121,22 +121,24 @@
 
 #day4-- app/main.py — 入口文件（非常简洁）
 # app/main.py
+# app/main.py
 from fastapi import FastAPI
-
 from app.database import Base, engine
-import app.models  # 注册表
+import app.models  # 确保所有模型已注册
 
-from app.routers.users import users_router, public_router
+from app.routers.users import users_router
+from app.auth import public_router
 from app.routers.tasks import router as tasks_router
 
+# 创建数据库表
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="FastAPI Task Manager")
 
-app.include_router(users_router)
-app.include_router(public_router)
-app.include_router(tasks_router)
-
+# 路由注册
+app.include_router(users_router)   # /users 注册
+app.include_router(public_router)  # /login 登录
+app.include_router(tasks_router)   # /tasks 任务
 
 @app.get("/")
 def read_root():

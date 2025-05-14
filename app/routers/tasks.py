@@ -1,19 +1,19 @@
+# app/routers/tasks.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app import models
 from app.schemas import TaskCreate, TaskOut, Msg
-from app.auth import get_current_user  # Day 10 权限
+from app.auth import get_current_user
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
-
 
 @router.post("", response_model=TaskOut)
 def create_task(
     task_in: TaskCreate,
-    db: Session = Depends(get_db),
-    user: models.User | None = Depends(get_current_user),  # 无 token 时 user=None
+    db:      Session          = Depends(get_db),
+    user:    models.User | None = Depends(get_current_user),
 ):
     data = task_in.model_dump()
     if user:
@@ -24,35 +24,31 @@ def create_task(
     db.refresh(task)
     return task
 
-
 @router.get("", response_model=list[TaskOut])
 def list_tasks(db: Session = Depends(get_db)):
     return db.query(models.Task).all()
 
-
 @router.get("/{task_id}", response_model=TaskOut, responses={404: {"model": Msg}})
 def get_task(
     task_id: int,
-    db: Session = Depends(get_db),
-    user: models.User | None = Depends(get_current_user),
+    db:      Session          = Depends(get_db),
+    user:    models.User | None = Depends(get_current_user),
 ):
-    q = db.query(models.Task).filter(models.Task.id == task_id)
+    query = db.query(models.Task).filter(models.Task.id == task_id)
     if user and not user.is_admin:
-        q = q.filter(models.Task.owner_id == user.id)
-    task = q.first()
+        query = query.filter(models.Task.owner_id == user.id)
+    task = query.first()
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
     return task
 
-
-# 管理员可访问所有
-@router.get("/admin/{task_id}", response_model=TaskOut, responses={404: {"model": Msg}})
+@router.get("/admin/{task_id}", response_model=TaskOut, responses={403:{"model":Msg},404:{"model":Msg}})
 def admin_get_task(
     task_id: int,
-    db: Session = Depends(get_db),
-    admin: models.User = Depends(get_current_user),
+    db:      Session          = Depends(get_db),
+    user:    models.User | None = Depends(get_current_user),
 ):
-    if not admin or not admin.is_admin:
+    if not user or not user.is_admin:
         raise HTTPException(status_code=403, detail="无权限")
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not task:

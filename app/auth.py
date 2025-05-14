@@ -1,30 +1,48 @@
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+# app/auth.py
+from datetime import datetime, timedelta, UTC
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 
+from passlib.hash import bcrypt  # 确保已安装 passlib[bcrypt]
 from app.database import get_db
 from app import models
-from app.routers.users import SECRET_KEY, ALGORITHM
+from app.schemas import Token, Msg
 
-# auto_error=False ➜ 若缺少 Authorization 头，将返回 None 而不是抛 401
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login", auto_error=False)
+SECRET_KEY = "demo-secret"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
+router = APIRouter(tags=["Auth"])
+
+# 统一登录接口，返回 JWT
+@router.post("/login", response_model=Token, responses={400: {"model": Msg}})
+def login(
+    form: OAuth2PasswordRequestForm = Depends(),
+    db:   Session                  = Depends(get_db),
+):
+    user = db.query(models.User).filter(models.User.username == form.username).first()
+    if not user or not bcrypt.verify(form.password, user.password):
+        raise HTTPException(status_code=400, detail="密码错误")
+
+    expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    token = jwt.encode({"sub": user.username, "exp": expire}, SECRET_KEY, ALGORITHM)
+    return Token(access_token=token)
+
+# 提取当前用户的依赖，可用于 /tasks ACL
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login", auto_error=False)
 
 def get_current_user(
     token: str | None = Depends(oauth2_scheme),
-    db: Session = Depends(get_db),
+    db:    Session    = Depends(get_db),
 ) -> models.User | None:
-    """
-    若请求未携带 Bearer Token → 返回 None
-    若携带 Token 但无效 → 抛 401
-    """
-    if not token:  # 无 token，视为匿名
+    if not token:
         return None
-
     cred_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid token",
+        detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
@@ -39,3 +57,6 @@ def get_current_user(
     if user is None:
         raise cred_exc
     return user
+
+# 导出给 main.py 使用
+public_router = router
