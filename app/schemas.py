@@ -1,29 +1,44 @@
-# app/schemas.py
-from pydantic import BaseModel, Field
 from typing import Optional
-
-# ---------- 任务相关 ----------
-class TaskCreate(BaseModel):
-    title: str = Field(..., min_length=1, max_length=50, description="任务标题，1‑50 字符")
-    description: Optional[str] = Field(None, max_length=200, description="任务描述，最多 200 字符")
+from pydantic import BaseModel, ConfigDict
 
 
-class Task(TaskCreate):
-    id: int
-    class Config:                       # pydantic v1 写法
-        orm_mode = True                 # v2 可改为 model_config = {"from_attributes": True}
-
-class Token(BaseModel):
-    access_token:str
-    token_type:str="bearer"
-    
-# ---------- 用户相关 ----------
-class UserCreate(BaseModel):            # 请求体：注册用户
+# -------- 用户 --------
+class UserCreate(BaseModel):
     username: str
     password: str
 
-class UserOut(BaseModel):                  # 响应体：返回给前端，不含密码
+
+class UserOut(BaseModel):
     id: int
     username: str
-    class Config:
-        orm_mode = True
+    is_admin: bool = False
+
+    model_config = ConfigDict(from_attributes=True, extra="ignore")
+
+
+# -------- 任务 --------
+class TaskBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+
+
+class TaskCreate(TaskBase):
+    pass
+
+
+class TaskOut(TaskBase):
+    id: int
+    is_done: bool
+    owner_id: Optional[int] = None  # 允许空
+
+    model_config = ConfigDict(from_attributes=True, extra="ignore")
+
+
+# -------- 其他 --------
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class Msg(BaseModel):
+    detail: str
