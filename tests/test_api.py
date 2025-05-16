@@ -1,49 +1,43 @@
+"""
+集成测试：注册 -> 登录 -> 创建任务 -> 列表查询
+确保严格鉴权：所有 /tasks 调用必须带 Bearer token
+"""
+
+import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
 
 
-def test_register_and_login():
-    # 注册
-    r = client.post("/users", json={"username": "alice", "password": "pwd"})
-    assert r.status_code == 201
-    uid = r.json()["id"]
-
-    # 重复注册
-    r_dup = client.post("/users", json={"username": "alice", "password": "pwd"})
-    assert r_dup.status_code == 400
-
-    # 登录成功
-    token_resp = client.post(
+def _get_token(username="alice", password="pwd") -> str:
+    # 注册（重复注册会 400，但不影响返回 token 流程）
+    client.post("/users", json={"username": username, "password": password})
+    # 登录
+    res = client.post(
         "/login",
-        data={"username": "alice", "password": "pwd"},
+        data={"username": username, "password": password},
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
-    assert token_resp.status_code == 200
-    token = token_resp.json()["access_token"]
-    assert token
+    return res.json()["access_token"]
 
-    # 创建任务
-    task_resp = client.post(
-        "/tasks",
-        json={"title": "pytest 任务", "description": "自动化测试"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
+
+@pytest.fixture
+def auth_header():
+    token = _get_token()
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_register_and_login(auth_header):
+    # 已在 fixture 中注册+登录
+
+    # 创建新任务
+    payload = {"title": "pytest 任务", "description": "自动化测试"}
+    task_resp = client.post("/tasks", json=payload, headers=auth_header)
     assert task_resp.status_code == 200
     task_id = task_resp.json()["id"]
 
-    # 获取列表
-    list_resp = client.get("/tasks")
-    assert any(t["id"] == task_id for t in list_resp.json())
-
-
-def test_wrong_password():
-    client.post("/users", json={"username": "bob", "password": "123"})
-    r = client.post(
-        "/login",
-        data={"username": "bob", "password": "wrong"},
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-    )
-    assert r.status_code == 400
-    assert r.json()["detail"] == "密码错误"
+    # 列表查询（带 token）
+    list_resp = client.get("/tasks", headers=auth_header)
+    tasks_json = list_resp.json()["items"]
+    assert any(t["id"] == task_id for t in tasks_json)

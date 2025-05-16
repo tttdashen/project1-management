@@ -121,19 +121,35 @@
 
 #day4-- app/main.py — 入口文件（非常简洁）
 # app/main.py
-# app/main.py
 from fastapi import FastAPI
 from app.database import Base, engine
 import app.models  # 确保所有模型已注册
 
+from fastapi_pagination import add_pagination                 # ➕
+from prometheus_fastapi_instrumentator import Instrumentator  # ➕
+
 from app.routers.users import users_router
 from app.auth import public_router
 from app.routers.tasks import router as tasks_router
+from app.dependencies.cache import init_cache                 # ➕
+from app.middlewares.limiter import init_limiter              # ➕
 
-# 创建数据库表
+# 创建数据库表（开发环境直接自动生成）
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="FastAPI Task Manager")
+
+# ---------- Day11 新增能力 ----------
+add_pagination(app)                                           # ➕ Swagger 分页 schema
+Instrumentator().instrument(app).expose(
+    app, include_in_schema=False
+)                                                             # ➕ /metrics Prometheus
+
+# 启动时初始化 Redis 缓存 & 限流器
+@app.on_event("startup")
+async def _startup() -> None:                                 # ➕
+    await init_cache(app)
+    init_limiter(app)
 
 # 路由注册
 app.include_router(users_router)   # /users 注册
@@ -144,3 +160,16 @@ app.include_router(tasks_router)   # /tasks 任务
 def read_root():
     return {"message": "任务系统启动成功"}
 
+
+from starlette.middleware.base import BaseHTTPMiddleware
+import time
+
+class ProcessTimeMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        start_time = time.time()
+        response = await call_next(request)
+        duration = time.time() - start_time
+        response.headers["X-Process-Time"] = str(duration)
+        return response
+
+app.add_middleware(ProcessTimeMiddleware)

@@ -20,3 +20,11 @@ websockets==15.0.1
 fastapi
 uvicorn
 sqlalchemy
+pydantic
+passlib[bcrypt]
+python-jose
+fastapi-pagination          # ➕
+fastapi-cache2              # ➕
+slowapi                     # ➕
+prometheus-fastapi-instrumentator  # ➕
+redis>=4.6
