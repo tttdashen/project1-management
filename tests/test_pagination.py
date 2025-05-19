@@ -1,30 +1,40 @@
-import time, pytest
-from httpx import AsyncClient
-from app.main import app
+# tests/test_pagination.py
+"""
+分页 / 缓存 & 限流测试（同步 TestClient）
+"""
 
-@pytest.mark.asyncio
-async def test_pagination_and_cache(client):
-    """
-    1) 第一次查询返回 200
-    2) 同参数第二次明显更快（命中缓存）
-    3) limit=1 时只返回一条数据
-    """
-    async with AsyncClient(app=app, base_url="http://test") as ac:
-        t0 = time.perf_counter()
-        r1 = await ac.get("/tasks", params={"limit": 1})
-        t1 = time.perf_counter()
-        r2 = await ac.get("/tasks", params={"limit": 1})
-        t2 = time.perf_counter()
+import time
+from starlette import status
+import pytest
 
-    assert r1.status_code == 200 and r2.status_code == 200
+
+def test_pagination_and_cache(client, auth_header):
+    """
+    1. 先创建 1 条任务，保证列表非空
+    2. 连续两次相同查询，第二次命中缓存 → 响应更快
+    """
+    client.post("/tasks", json={"title": "缓存测试"}, headers=auth_header)
+
+    t0 = time.perf_counter()
+    r1 = client.get("/tasks", params={"limit": 1}, headers=auth_header)
+    t1 = time.perf_counter()
+    r2 = client.get("/tasks", params={"limit": 1}, headers=auth_header)
+    t2 = time.perf_counter()
+
+    assert r1.status_code == status.HTTP_200_OK
+    assert r2.status_code == status.HTTP_200_OK
     assert len(r1.json()["items"]) == 1
-    assert (t1 - t0) > (t2 - t1)          # 第二次应更快
+    assert (t1 - t0) > (t2 - t1)           # 第 2 次更快（缓存）
+
 
 @pytest.mark.asyncio
-async def test_rate_limit(client):
-    """连续 11 次 POST，应最后一次 429"""
-    headers = {}
+async def test_rate_limit(client, auth_header):
+    """
+    连续 11 次 POST：
+    · 前 10 次正常
+    · 第 11 次触发限流 → 429
+    """
     for _ in range(10):
-        client.post("/tasks", json={"title": "spam"}, headers=headers)
-    r = client.post("/tasks", json={"title": "overflow"}, headers=headers)
-    assert r.status_code == 429
+        client.post("/tasks", json={"title": "spam"}, headers=auth_header)
+    last = client.post("/tasks", json={"title": "overflow"}, headers=auth_header)
+    assert last.status_code == status.HTTP_429_TOO_MANY_REQUESTS

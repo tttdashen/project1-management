@@ -121,7 +121,9 @@
 
 #day4-- app/main.py — 入口文件（非常简洁）
 # app/main.py
-from fastapi import FastAPI
+from fastapi import FastAPI,BackgroundTasks
+from app.tasks.background import send_notification
+from app.middlewares.timer_middleware import TimerMiddleware
 from app.database import Base, engine
 import app.models  # 确保所有模型已注册
 
@@ -138,6 +140,15 @@ from app.middlewares.limiter import init_limiter              # ➕
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="FastAPI Task Manager")
+app.add_middleware(TimerMiddleware)                                   # ✅ 添加中间件
+
+# ✅ 新增接口：模拟创建任务并异步发送通知
+@app.post("/tasks/create")
+async def create_task(title:str,username:str,background_tasks:BackgroundTasks):
+    #将任务加入后台执行队列（不阻塞当前请求）
+    background_tasks.add_task(send_notification,username=username,task_title=title)
+    return {"msg":f"任务<{title}>已创建，通知发送中（异步）"}
+
 
 # ---------- Day11 新增能力 ----------
 add_pagination(app)                                           # ➕ Swagger 分页 schema

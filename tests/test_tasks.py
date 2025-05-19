@@ -1,57 +1,32 @@
-"""
-测试任务接口（需要登录）
-流程：
-1. 注册 user=alice 密码=pwd
-2. 登录获取 token
-3. 带 Authorization 头调用 /tasks 相关接口
-"""
-
-import pytest
-from fastapi.testclient import TestClient
-from app.main import app
-
-client = TestClient(app)
+# tests/test_tasks.py
+from starlette import status
 
 
-def _get_token(username="alice", password="pwd") -> str:
-    # 注册（幂等：若已存在会 400，不影响）
-    client.post("/users", json={"username": username, "password": password})
-    # 登录拿 token
-    resp = client.post(
-        "/login",
-        data={"username": username, "password": password},
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-    )
-    return resp.json()["access_token"]
-
-
-@pytest.fixture
-def auth_header():
-    token = _get_token()
-    return {"Authorization": f"Bearer {token}"}
-
-
-def test_creat_task(auth_header):
+def test_creat_task(client, auth_header):
     payload = {"title": "写测试用例", "description": "学习如何测试FastAPI接口"}
-    response = client.post("/tasks", json=payload, headers=auth_header)
-    assert response.status_code == 200
-    data = response.json()
+    resp = client.post("/tasks", json=payload, headers=auth_header)
+    assert resp.status_code in (status.HTTP_200_OK, status.HTTP_201_CREATED)
+    data = resp.json()
     assert data["title"] == payload["title"]
+    assert "id" in data
 
 
-def test_get_task(auth_header):
+def test_get_task(client, auth_header):
+    # 先创建一条任务
     create = client.post(
         "/tasks",
-        json={"title": "查询测试", "description": "测试get_task接口"},
+        json={"title": "查询测试", "description": "测试 get_task 接口"},
         headers=auth_header,
     )
+    assert create.status_code in (200, 201)
     task_id = create.json()["id"]
 
-    r = client.get(f"/tasks/{task_id}", headers=auth_header)
-    assert r.status_code == 200
-    assert r.json()["id"] == task_id
+    # 查询
+    get_r = client.get(f"/tasks/{task_id}", headers=auth_header)
+    assert get_r.status_code == status.HTTP_200_OK
+    assert get_r.json()["id"] == task_id
 
 
-def test_get_invalid_task(auth_header):
-    r = client.get("/tasks/99999", headers=auth_header)
-    assert r.status_code == 404
+def test_get_invalid_task(client, auth_header):
+    resp = client.get("/tasks/999999", headers=auth_header)
+    assert resp.status_code == status.HTTP_404_NOT_FOUND
