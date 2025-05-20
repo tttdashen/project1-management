@@ -1,10 +1,12 @@
-# ❶ 去掉 postponed-annotations —— 不再使用: from __future__ import annotations
+# app/routers/tasks.py
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import select, desc
-from fastapi_pagination import Page, paginate, Params
+from sqlalchemy import desc
 from typing import Optional
+
+from fastapi_pagination import Page, Params
+from fastapi_pagination.ext.sqlalchemy import paginate
 
 from app.database import get_db
 from app import models
@@ -15,14 +17,13 @@ from app.middlewares.limiter import limiter
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
-# -------------------------------------------------- 创建任务 --------------------------------------------------
 @router.post("", response_model=TaskOut)
-@limiter.limit("10/minute")                     # 每 IP 每分钟 10 次
+@limiter.limit("10/minute")
 def create_task(
-    request: Request,                           # SlowAPI 用于取 IP
-    task_in: TaskCreate,                        # 唯一 JSON 体
-    db:   Session      = Depends(get_db),
-    user: models.User  = Depends(current_user), # 必须登录
+    request: Request,
+    task_in: TaskCreate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(current_user),
 ):
     data = task_in.model_dump()
     data["owner_id"] = user.id
@@ -32,35 +33,38 @@ def create_task(
     db.refresh(task)
     return task
 
-# -------------------------------------------------- 列表任务 --------------------------------------------------
 @router.get("", response_model=Page[TaskOut])
-@cache(expire=30)                               # 30 秒缓存
+@cache(expire=30)
 def list_tasks(
     _user: models.User = Depends(current_user),
     db: Session = Depends(get_db),
-    limit : int  = Query(10, ge=1, le=100),
-    offset: int  = Query(0,  ge=0),
-    order_by: str  = Query("id"),
-    desc_:   bool  = Query(False, alias="desc"),
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    order_by: str = Query("id"),
+    desc_: bool = Query(False, alias="desc"),
     is_done: Optional[bool] = Query(None),
 ):
-    stmt = select(models.Task)
+    """
+    直接对 SQLAlchemy Query 对象进行分页，而不是先 .all() 再 paginate。
+    """
+    # 1. 构造 Query
+    query = db.query(models.Task)
     if is_done is not None:
-        stmt = stmt.where(models.Task.is_done == is_done)
+        query = query.filter(models.Task.is_done == is_done)
 
+    # 2. 排序
     order_col = getattr(models.Task, order_by, models.Task.id)
-    stmt = stmt.order_by(desc(order_col) if desc_ else order_col)
+    query = query.order_by(desc(order_col) if desc_ else order_col)
 
-    tasks = db.execute(stmt).scalars().all()
+    # 3. 计算分页参数并返回
     page_params = Params(size=limit, page=offset // limit + 1)
-    return paginate(tasks, params=page_params)
+    return paginate(query, params=page_params)
 
-# -------------------------------------------------- 获取本人任务 --------------------------------------------------
 @router.get("/{task_id}", response_model=TaskOut, responses={404: {"model": Msg}})
 def get_task(
     task_id: int,
-    db:   Session      = Depends(get_db),
-    user: models.User  = Depends(current_user),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(current_user),
 ):
     task = (
         db.query(models.Task)
@@ -71,10 +75,11 @@ def get_task(
         raise HTTPException(status_code=404, detail="任务不存在")
     return task
 
-# -------------------------------------------------- 管理员读取任务 --------------------------------------------------
-@router.get("/admin/{task_id}",
-            response_model=TaskOut,
-            responses={403: {"model": Msg}, 404: {"model": Msg}})
+@router.get(
+    "/admin/{task_id}",
+    response_model=TaskOut,
+    responses={403: {"model": Msg}, 404: {"model": Msg}}
+)
 def admin_get_task(
     task_id: int,
     db: Session = Depends(get_db),

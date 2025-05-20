@@ -121,46 +121,50 @@
 
 #day4-- app/main.py — 入口文件（非常简洁）
 # app/main.py
-from fastapi import FastAPI,BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks
+from contextlib import asynccontextmanager
 from app.tasks.background import send_notification
 from app.middlewares.timer_middleware import TimerMiddleware
 from app.database import Base, engine
 import app.models  # 确保所有模型已注册
 
-from fastapi_pagination import add_pagination                 # ➕
-from prometheus_fastapi_instrumentator import Instrumentator  # ➕
+from fastapi_pagination import add_pagination
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.routers.users import users_router
 from app.auth import public_router
 from app.routers.tasks import router as tasks_router
-from app.dependencies.cache import init_cache                 # ➕
-from app.middlewares.limiter import init_limiter              # ➕
+from app.dependencies.cache import init_cache
+from app.middlewares.limiter import init_limiter
 
 # 创建数据库表（开发环境直接自动生成）
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="FastAPI Task Manager")
-app.add_middleware(TimerMiddleware)                                   # ✅ 添加中间件
-
-# ✅ 新增接口：模拟创建任务并异步发送通知
-@app.post("/tasks/create")
-async def create_task(title:str,username:str,background_tasks:BackgroundTasks):
-    #将任务加入后台执行队列（不阻塞当前请求）
-    background_tasks.add_task(send_notification,username=username,task_title=title)
-    return {"msg":f"任务<{title}>已创建，通知发送中（异步）"}
-
-
-# ---------- Day11 新增能力 ----------
-add_pagination(app)                                           # ➕ Swagger 分页 schema
-Instrumentator().instrument(app).expose(
-    app, include_in_schema=False
-)                                                             # ➕ /metrics Prometheus
-
-# 启动时初始化 Redis 缓存 & 限流器
-@app.on_event("startup")
-async def _startup() -> None:                                 # ➕
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 启动前初始化 Redis 缓存 & 限流器
     await init_cache(app)
     init_limiter(app)
+    yield
+    # 这里可添加关闭时的清理逻辑（如有需求）
+
+app = FastAPI(
+    title="FastAPI Task Manager",
+    lifespan=lifespan
+)
+
+# 应用中间件
+app.add_middleware(TimerMiddleware)
+
+# 模拟创建任务并异步发送通知
+@app.post("/tasks/create")
+async def create_task(title: str, username: str, background_tasks: BackgroundTasks):
+    background_tasks.add_task(send_notification, username=username, task_title=title)
+    return {"msg": f"任务<{title}>已创建，通知发送中（异步）"}
+
+# Day11 新增能力：分页 & Prometheus 指标
+add_pagination(app)
+Instrumentator().instrument(app).expose(app, include_in_schema=False)
 
 # 路由注册
 app.include_router(users_router)   # /users 注册
@@ -172,6 +176,7 @@ def read_root():
     return {"message": "任务系统启动成功"}
 
 
+# 可选：额外的 ProcessTimeMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 import time
 

@@ -1,8 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Index   # ✏️ 删除: 未导入 DateTime
-# ✏️ 删除 from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Index
 from sqlalchemy.orm import relationship
-import datetime                                  # ➕
-
+from datetime import datetime, timezone
 from app.database import Base
 
 class User(Base):
@@ -19,11 +17,15 @@ class Task(Base):
     title = Column(String(100), nullable=False)
     description = Column(String(255))
     is_done = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)   # ➕ 供排序
+    # 使用时区感知的 datetime，消除弃用警告
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc)
+    )
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     owner = relationship("User", back_populates="tasks")
 
-    # ➕ 新索引：提高分页 + 过滤性能
+    # 新索引：提高分页 + 过滤 性能
     __table_args__ = (
         Index("idx_done_created", "is_done", "created_at"),
     )
